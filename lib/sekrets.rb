@@ -112,7 +112,11 @@ class Sekrets
 
     if decrypted
       expanded = ERB.new(decrypted).result(TOPLEVEL_BINDING)
-      object = YAML.load(expanded)
+      begin
+        object = YAML.load(expanded, aliases: true) #Psych 4 in ruby 3.1 and up
+      rescue ArgumentError
+        object = YAML.load(expanded) #Psych 3 in ruby 3.0 and lower
+      end
       object.is_a?(Hash) ? Map.for(object) : object
     end
   end
