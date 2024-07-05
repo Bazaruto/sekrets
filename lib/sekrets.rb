@@ -232,7 +232,7 @@ class Sekrets
           STDIN
         else
           opened = true
-          open(arg, 'rb+')
+          open(arg, 'rb')
       end
 
     close =
@@ -320,8 +320,23 @@ class Sekrets
 #
   module Blowfish
     def cipher(mode, key, data)
-      cipher = OpenSSL::Cipher.new('bf-cbc').send(mode)
-      cipher.key = Digest::SHA256.digest(key.to_s).slice(0,16)
+      cipher =
+        begin
+          ::OpenSSL::Cipher.new('bf-cbc').send(mode)
+        rescue StandardError => error
+          raise if(
+            @openssl_is_already_monkey_patched or
+            (error.class.name != "OpenSSL::Cipher::CipherError") or
+            (not defined?(::OpenSSL::Provider))
+          )
+
+          @openssl_is_already_monkey_patched = true
+          ::OpenSSL::Provider.load("legacy")
+          ::OpenSSL::Cipher.new('bf-cbc').send(mode)
+        end
+
+      cipher.key = Digest(:SHA256).digest(key.to_s).slice(0, 16)
+
       cipher.update(data) << cipher.final
     end
 
@@ -354,6 +369,7 @@ Sekret = Sekrets
 
 BEGIN {
 
+  require 'digest'
   require 'openssl'
   require 'fileutils'
   require 'erb'
@@ -361,7 +377,7 @@ BEGIN {
   require 'tmpdir'
 
   class Sekrets < ::String
-    Version = '1.13.0' unless defined?(Version)
+    Version = '2.0.0' unless defined?(Version)
 
     class << Sekrets
       def version
@@ -370,11 +386,12 @@ BEGIN {
 
       def dependencies
         {
-          'highline' => [ 'highline' , ' ~> 1.6'   ] ,
-          'map'      => [ 'map'      , ' ~> 6.3'   ] ,
-          'fattr'    => [ 'fattr'    , ' ~> 2.2'   ] ,
-          'coerce'   => [ 'coerce'   , ' ~> 0.0.3' ] ,
-          'main'     => [ 'main'     , ' ~> 6.1'   ] ,
+          'openssl'  => [ 'openssl'  , ' ~> 3.2'   ] ,
+          'highline' => [ 'highline' , ' ~> 1.7'   ] ,
+          'map'      => [ 'map'      , ' ~> 6.6'   ] ,
+          'fattr'    => [ 'fattr'    , ' ~> 2.4'   ] ,
+          'coerce'   => [ 'coerce'   , ' ~> 0.0.8' ] ,
+          'main'     => [ 'main'     , ' ~> 6.3'   ] ,
         }
       end
 
